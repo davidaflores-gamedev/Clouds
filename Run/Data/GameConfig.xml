@@ -1,0 +1,16 @@
+<GameConfig
+  windowAspect="2.0"
+  windowTitle="Vaporum"
+
+  netMode="None"
+  netSendBufferSize="2048"
+  netRecvBufferSize="2048"
+  netHostAddress="127.0.0.1:23456"
+/>
+
+<!--
+  windowFullscreen="true"
+  windowSize="2540,1200"
+  windowSize="1900,1100"
+-->
+

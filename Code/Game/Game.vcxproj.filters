@@ -1,0 +1,104 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Framework">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Gameplay">
+      <UniqueIdentifier>{737bd63a-507f-40f7-8e9d-8a1f20e0f8df}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Framework\Entities">
+      <UniqueIdentifier>{fa282d19-486c-4063-82d3-272cedcccf6c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Framework\Weather">
+      <UniqueIdentifier>{b59ed879-8695-44b4-b318-bfa257fc4b02}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Main_Windows.cpp">
+      <Filter>Framework</Filter>
+    </ClCompile>
+    <ClCompile Include="app.cpp">
+      <Filter>Framework</Filter>
+    </ClCompile>
+    <ClCompile Include="Game.cpp">
+      <Filter>Framework</Filter>
+    </ClCompile>
+    <ClCompile Include="GameCommon.cpp">
+      <Filter>Framework</Filter>
+    </ClCompile>
+    <ClCompile Include="Entity.cpp">
+      <Filter>Framework\Entities</Filter>
+    </ClCompile>
+    <ClCompile Include="Prop.cpp">
+      <Filter>Framework\Entities</Filter>
+    </ClCompile>
+    <ClCompile Include="Player.cpp">
+      <Filter>Framework\Entities</Filter>
+    </ClCompile>
+    <ClCompile Include="Cloud.cpp">
+      <Filter>Framework\Weather</Filter>
+    </ClCompile>
+    <ClCompile Include="Voxel.cpp">
+      <Filter>Framework\Weather</Filter>
+    </ClCompile>
+    <ClCompile Include="Weather.cpp">
+      <Filter>Framework\Weather</Filter>
+    </ClCompile>
+    <ClCompile Include="Perlin3D.cpp">
+      <Filter>Framework</Filter>
+    </ClCompile>
+    <ClCompile Include="CloudManager.cpp">
+      <Filter>Framework\Weather</Filter>
+    </ClCompile>
+    <ClCompile Include="CloudsBuffer.cpp">
+      <Filter>Framework</Filter>
+    </ClCompile>
+    <ClCompile Include="Octree.cpp">
+      <Filter>Framework</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="app.hpp">
+      <Filter>Framework</Filter>
+    </ClInclude>
+    <ClInclude Include="Game.hpp">
+      <Filter>Framework</Filter>
+    </ClInclude>
+    <ClInclude Include="GameCommon.hpp">
+      <Filter>Framework</Filter>
+    </ClInclude>
+    <ClInclude Include="Entity.hpp">
+      <Filter>Framework\Entities</Filter>
+    </ClInclude>
+    <ClInclude Include="EngineBuildPreferences.hpp">
+      <Filter>Framework</Filter>
+    </ClInclude>
+    <ClInclude Include="Prop.hpp">
+      <Filter>Framework\Entities</Filter>
+    </ClInclude>
+    <ClInclude Include="Player.hpp">
+      <Filter>Framework\Entities</Filter>
+    </ClInclude>
+    <ClInclude Include="Cloud.hpp">
+      <Filter>Framework\Weather</Filter>
+    </ClInclude>
+    <ClInclude Include="Voxel.hpp">
+      <Filter>Framework\Weather</Filter>
+    </ClInclude>
+    <ClInclude Include="Weather.hpp">
+      <Filter>Framework\Weather</Filter>
+    </ClInclude>
+    <ClInclude Include="Perlin3D.hpp">
+      <Filter>Framework</Filter>
+    </ClInclude>
+    <ClInclude Include="CloudManager.hpp">
+      <Filter>Framework\Weather</Filter>
+    </ClInclude>
+    <ClInclude Include="CloudsBuffer.hpp">
+      <Filter>Framework</Filter>
+    </ClInclude>
+    <ClInclude Include="Octree.hpp" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,12 @@
+# Large Visual Studio cache files (over 100MB limit)
+.vs/
+
+# Large temporary files that can exceed GitHub's 100MB limit
+Temporary/
+*.tmp
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# That's it - keep everything else to be safe!
