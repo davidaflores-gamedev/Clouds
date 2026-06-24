@@ -58,6 +58,9 @@
     <ClCompile Include="Octree.cpp">
       <Filter>Framework</Filter>
     </ClCompile>
+    <ClCompile Include="SkyVolume.cpp">
+      <Filter>Framework</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="app.hpp">
@@ -100,5 +103,6 @@
       <Filter>Framework</Filter>
     </ClInclude>
     <ClInclude Include="Octree.hpp" />
+    <ClInclude Include="SkyVolume.hpp" />
   </ItemGroup>
 </Project>

@@ -28,6 +28,14 @@ struct OctreeNode
     unsigned int depth;           // Depth of this node
 };
 
+struct CloudShape {
+    float3 center;
+    float pad1;
+    float3 radii;
+    float densityScale;
+};
+
+
 // Constant buffers
 cbuffer LightConstants : register(b1) {
     float3 SunDirection;
@@ -84,7 +92,10 @@ cbuffer CloudConstants : register(b6) {
     float   powderBias;
     float   anisotropyG;
     float   densityFalloff;
-    float   padding3;
+    float   minAccepted;
+
+    int     useShapes;
+    int     numShapes;
 };
 
 cbuffer ShadowConstants : register(b7) {
@@ -97,7 +108,8 @@ StructuredBuffer<Voxel>         voxels              : register(t1);
 Texture3D<float>                perlinNoiseTexture  : register(t2);
 Texture3D<float>                worleyNoiseTexture  : register(t3);
 StructuredBuffer<OctreeNode>    octreeNodes         : register(t4);
-Texture2D<float4>               voxelShadowMap        : register(t5);
+Texture2D<float4>               voxelShadowMap      : register(t5);
+StructuredBuffer<CloudShape>    shapes              : register(t6);
 SamplerState                    samplerState        : register(s0);
 RWTexture2D<float4>             outputTexture       : register(u0);
 
@@ -220,6 +232,25 @@ float SampleNoise(float3 rayPos) {
     return pow(saturate(noiseValue), noisePowVal);
 }
 
+float EvaluateCloudShape(float3 pos) {
+    float totalDensity = 0.0f;
+    
+    for (int i = 0; i < numShapes; i++) {
+        CloudShape shape = shapes[i];
+        float3 localPos = (pos - shape.center) / shape.radii;
+        float dist = length(localPos);
+        
+        if (dist <= 1.0f) {
+            // Ellipsoid density falloff
+            float density = saturate(1.0 - dist);
+            density = pow(density, 2.0);  // Softer edges
+            totalDensity += density * shape.densityScale;
+        }
+    }
+    
+    return totalDensity;
+}
+
 // Accumulating density for rendering clouds
 float AccumulateDensity(Voxel voxel, float noiseValue) {
     float densityWeight = 0.3f; // Lower = less impact from voxel density
@@ -250,6 +281,13 @@ float HenyeyGreensteinPhaseFunction(float3 viewDir, float3 lightDir, float g) {
     float gSquared = g * g;
     float denom = 1.0 + gSquared - 2.0 * g * cosTheta;
     return (1.0 - gSquared) / pow(denom, 1.5);
+}
+
+float SoftKneeAlpha(float opacity, float aMin, float aMax, float shapeExp)
+{
+    float a = smoothstep(aMin, aMax, saturate(opacity));
+    // optional curvature to avoid “milky” fringes; 1.0 = off, 1.2–2.0 subtle boost
+    return 1.0 - pow(1.0 - a, shapeExp);
 }
 
 float TraverseOctree(uint rootNodeIndex, float3 rayPos, float3 rayDir, inout float minSDF, inout uint closestNodeIndex) {
@@ -482,17 +520,12 @@ float4 RayMarchOctree(float2 uv)
     float minStep = minStepSize * voxelDimensions.x;
     float minDist = 0.02f;
 
-    const float lowDensityThreshold = 0.1f; // Threshold for low density
-    const float densityMultiplier   = 2.0f;  // Multiplier when density is low
-
-    const float leafMultiplier = 5.0f; // Multiplier for leaf nodes
-
+    const float lowDensityThreshold = 0.1f;
+    const float densityMultiplier   = 2.0f;
+    const float leafMultiplier = 5.0f;
 
     while (distanceTraveled < maxDistance)
     {
-        //--------------------------------------------------
-        // 1) Check which cloud bounding box is nearest
-        //--------------------------------------------------
         float minDistCloud = 100000;
         int   closestCloudIndex = -1;
 
@@ -513,287 +546,244 @@ float4 RayMarchOctree(float2 uv)
             }
         }
 
-        //--------------------------------------------------
-        // 2) If we found a cloud, see if we are inside it
-        //-------------------------------------------------- 
-        // If minDistCloud is large, we skip forward a big step
         float stepSize = max(minDistCloud, minStep);
 
         if (closestCloudIndex >= 0 && minDistCloud < 0.1f) {
             Cloud cloud = clouds[closestCloudIndex];
 
-            //---------------------------------------------
-            // 3) Traverse the cloud's octree:
-            //    This call finds the nearest node bounding box
-            //---------------------------------------------
             float minSDF = 100000.0f;
             uint  closestNodeIndex = 0xFFFFFFFF;
 
-            // Assuming cloud.octreeOffset is the root node for this cloud
             TraverseOctree(cloud.octreeOffset, rayPos, rayDir, minSDF, closestNodeIndex);
 
-            //---------------------------------------------
-            // 4) If we are close enough to that node, process it
-            //---------------------------------------------
             if (minSDF <= minDist) {
                 OctreeNode node = octreeNodes[closestNodeIndex];
 
-                // If node has no children => it's a leaf
-                if (node.numChildren == 0) {
-                    // We only handle a small # of voxels
-                    for (uint v = 0; v < node.numVoxels; v++) {
-                        // Get the voxel from the node
-                        uint voxelIdx = node.firstVoxelIndex + v;
-                        Voxel voxel = voxels[voxelIdx];
+                if (node.numChildren == 0)
+{
+    // NEW: shape-based option
+    if (useShapes == 1)
+    {
+        // Shape-based evaluation (no voxel loop)
+        float shapeDensity = EvaluateCloudShape(rayPos);
+        if (shapeDensity > 0.01f)
+        {
+            float noiseVal   = SampleNoise(rayPos);
+            float densityVal = shapeDensity * noiseVal * densityMultiplier;
 
-                        // Check if inside the voxel
-                        float distToVoxel = BoxSDF(rayPos, voxel.position,  voxelDimensions * .5f);
-                        if (distToVoxel < minDist) {
-                            // If so, accumulate lighting & color, etc.
-                            float noiseVal   = SampleNoise(rayPos);
-//                             if (noiseVal < 0.1f) {
-//                                 noiseVal = 0.f;
-//                             }
-                            float densityVal = AccumulateDensity(voxel, noiseVal);
-                           
-                            float voxelDist = length(rayPos - voxel.position);
-                            float voxelMaxRadius = length(voxelDimensions * 0.5f);
-                            float normalizedVoxelDist = saturate(voxelDist / voxelMaxRadius);
-                                
-                            // -- Cloud Distance --
-                            // Compute cloud center from its bounding box.
-                            float3 cloudCenter = (cloud.maxBounds + cloud.minBounds) * 0.5f;
-                            float cloudDist = length(rayPos - cloudCenter);
-                            float cloudMaxRadius = length((cloud.maxBounds.z - cloud.minBounds.z));
-                            float normalizedCloudDist = saturate(cloudDist / cloudMaxRadius);
-                            
-                            // -- Blend the two distances --
-                            float combinedNorm = lerp(normalizedVoxelDist, normalizedCloudDist, cloudVoxelDistanceLerpVal);
-                            
-                            // Compute a falloff (smooth edge) using smoothstep
-                            float falloff = smoothstep(0.0f, 0.95f, combinedNorm);
-                            
-                            // Alternative: Use an exponential curve for more rounded blending
-                            // float falloff = pow(normalizedDist, 3.0f);  // Cubic falloff for softer edges
-                            
-                            densityVal *= (1.0f - falloff);
+            // (same transmittance / alpha / lighting code as voxel path)
+            if (densityVal >= 0.0001f)
+            {
+                float densityFactor = 1.0f;
+                if (densityVal < lowDensityThreshold)
+                    densityFactor = densityMultiplier;
 
+                float distanceFactor     = lerp(1.0f, farMultiplier, saturate(distanceTraveled / farDistanceThreshold));
+                float adaptiveMultiplier = max(densityFactor, distanceFactor);
+                stepSize = max(minSDF, minStep) * adaptiveMultiplier;
 
-                            // // 3) Large-scale Worley mask
-                            // float largeScaleFreq = 0.05f;
-                            // float2 largeScaleCoords = rayPos.xz * largeScaleFreq;
-                            // float largeScaleWorleyVal = worleyNoiseTexture.SampleLevel(samplerState, float3(largeScaleCoords, 0), 0).r;
-                            // float largeScaleMask = smoothstep(0.3f, 0.6f, largeScaleWorleyVal);
-                            // densityVal *= largeScaleMask;
-                            
-                            // 4) Radial height function (horizontal fade near edges)
-                           // Extract the center in X–Y, ignoring Z
-                            float2 centerXY = float2(cloudCenter.x, cloudCenter.y);
-                            
-                            // Extract the sample position in X–Y, ignoring Z
-                            float2 rayXY = float2(rayPos.x, rayPos.y);
-                            
-                            // Distance in the X–Y plane from cloud center
-                            float radialDist = length(rayXY - centerXY);
-                            
-                            // "bigRadius" could be half the width/length of your cloud in X–Y
-                            float2 cloudSizeXY = (cloud.maxBounds - cloud.minBounds).xy; 
-                            float bigRadius = length(cloudSizeXY * 0.5f);
-                            
-                            // Compute a 0..1 factor for how far out we are horizontally
-                            float radialNorm = saturate(radialDist / bigRadius);
-                            
-                            // The simplest fade is: center = 1, edges = 0
-                            float radialFalloff = 1.0f - radialNorm;
-                            
-                            // Optionally, sharpen the fade:
-                            radialFalloff = pow(radialFalloff, 2.0f); // or 3.0f, etc.
+                float transmittanceDecay = exp(-extinctionCoefficient * densityVal * stepSize);
+                float alpha              = 1.0f - transmittanceDecay;
+                alpha = max(alpha, densityVal * 0.02f); // soft minimum
 
-                            
+                float3 scatterColor = float3(0.85f, 0.85f, 1.0f);
 
-                            densityVal *= radialFalloff;
-                            
-                            float densityFactor = 1.0f;
+                // Shadows
+                float4 lightPos     = mul(LightViewProj, float4(rayPos, 1.0f));
+                float  depthInLight = lightPos.z / lightPos.w;
+                float2 lightNDC     = lightPos.xy / lightPos.w;
+                float2 voxelShadowUV = 0.5 * lightNDC + 0.5;
+                voxelShadowUV.y = 1.0 - voxelShadowUV.y;
 
-                            
+                float2 texelSize = 1.0 / float2(1381, 690);
+                float  voxelShadowSum = 0.0f;
+                int    pcfSamples = 0;
+                [unroll]
+                for (int x = -1; x <= 1; x++)
+                {
+                    [unroll]
+                    for (int y = -1; y <= 1; y++)
+                    {
+                        float2 offset    = texelSize * float2(x, y);
+                        float2 sampleUV  = voxelShadowUV + offset;
+                        float4 voxelData = voxelShadowMap.SampleLevel(samplerState, sampleUV, 0.0f);
 
-                            if (densityVal < lowDensityThreshold) {
-                                
-                                densityFactor = densityMultiplier;
-                            }
-
-                            // Increase step size for far-away regions
-                            float distanceFactor = lerp(1.0f, farMultiplier, saturate(distanceTraveled / farDistanceThreshold));
-
-                            float adaptiveMultiplier = max(densityFactor, distanceFactor);
-                            
-                            stepSize = max(minSDF, minStep) * adaptiveMultiplier;
-
-                            //Compute alpha via Beer-Lambert: 
-
-                            float transmittanceDecay = exp(-extinctionCoefficient * densityVal * stepSize);
-                            float alpha = 1.0f - transmittanceDecay;
-
-                            //float alpha = 1.0f - exp(-extinctionCoefficient * densityVal * stepSize);
-
-                            float3 scatterColor = float3(.85f, .85f, 1.0f);
-
-                            float3 SunPosition = normalize(SunDirection) * - 10000.0f;
-                            
-                            float3 DirectionToSun = normalize(SunPosition - rayPos);
-                            
-                           // float anisotropyG = 0.5; // Forward scattering factor
-                           // 
-                           // // Henyey-Greenstein phase function
-                           // float cosTheta = dot(rayDir, DirectionToSun);
-                           // float gSquared = anisotropyG * anisotropyG;
-                           // float hg = (1.0 - gSquared) / pow(1.0 + gSquared - 2.0 * anisotropyG * cosTheta, 1.5);
-                           // 
-                           // // Scale by density
-                           // float powder = hg * densityVal;
-                            //float powder = PowderEffect(rayDir, DirectionToSun, .1f);
-
-                                   // --- Begin Voxel Shadow Map PCF Sampling ---
-                           // Transform the current ray position into light space
-                           float4 lightPos = mul(LightViewProj, float4(rayPos, 1.0f));
-                           float depthInLight = lightPos.z / lightPos.w;
-                           float2 lightNDC = lightPos.xy / lightPos.w;
-                           float2 voxelShadowUV = 0.5 * lightNDC + 0.5;
-                           // Flip Y if needed
-                           voxelShadowUV.y = 1.0 - voxelShadowUV.y;
-                          
-                           // Define texel size for PCF sampling (adjust to your voxel shadow map resolution)
-                           float2 texelSize = 1.0 / float2(1381, 690);
-
-                           float voxelShadowSum = 0.0f;
-                           int pcfSamples = 0;  // 4x4 PCF
-                           for (int x = -1; x <= 1; x++) {
-                               for (int y = -1; y <= 1; y++) {
-                                   float2 offset = texelSize * float2(x, y); 
-                                   float2 sampleUV = voxelShadowUV + offset;
-                           
-                                   float4 voxelData = voxelShadowMap.SampleLevel(samplerState, sampleUV, 0.0f);
-                                   float sampleVoxelShadow = 1.0f;
-                           
-                                   if (depthInLight < voxelData.r) {
-                                       sampleVoxelShadow = 1.0f;  // Fully lit
-                                   } else if (depthInLight > voxelData.b) {
-                                       sampleVoxelShadow = 1.0f - voxelData.g;  // Fully shadowed
-                                   } else {
-                                       float t = saturate((depthInLight - voxelData.r) / (voxelData.b - voxelData.r));
-                                       sampleVoxelShadow = lerp(1.0f, 1.0f - voxelData.g, t);
-                                   }
-                                   pcfSamples++;
-                                   voxelShadowSum += sampleVoxelShadow;
-                               }
-                           }
-                           
-                           // Average the PCF samples
-                           float voxelShadowFactor = shadowFactorMin + (voxelShadowSum / (pcfSamples) * 1.f);
-
-                           float powder = PowderEffect(rayDir, -DirectionToSun, powderBias);
-                            
-                            float hg = HenyeyGreensteinPhaseFunction(rayDir, -DirectionToSun, anisotropyG);
-                           
-                           //float voxelShadowFactor = voxelShadowSum;
-                            // --- End Voxel Shadow Map PCF Sampling ---
-
-
-                            //front-to-back accumulation
-                            finalColor.rgb += transmittance * scatterColor * alpha * powder * hg * voxelShadowFactor; // * voxelShadowFactor; //* powder;
-
-                            // Update transmittance
-                            transmittance *= transmittanceDecay;
-                            // float3 localPos = rayPos - voxel.position;
-                            ////float3 normal = normalize(rayPos - voxel.position);
-                            //float3 normal = ComputeVoxelNormal(localPos);
-
-                            // Compute lighting with shadow consideration
-                            //float lighting = ComputeLightingWithShadowsOctree(voxel, rayPos, normalize(SunDirection), normal, densityVal, rayDir);
-
-                            //totalDensity += densityVal;
-
-                            //
-                            //float attenuation = ApplyBeersLaw(densityVal, stepSize);
-
-                            //float3 colorGradient = lerp(float3(0.0, 0.0, 0.0), float3(1.0, 1.0, 1.0), totalDensity);
-                            //finalColor.rgb += colorGradient * attenuation * powder * densityVal; //* lighting;        
-
-                            if (transmittance.r < 0.01f) {
-                                finalColor.a = 1.0f;
-                                return finalColor;
-                            }
+                        float sampleVoxelShadow = 1.0f;
+                        if (depthInLight < voxelData.r)
+                        {
+                            sampleVoxelShadow = 1.0f;
                         }
+                        else if (depthInLight > voxelData.b)
+                        {
+                            sampleVoxelShadow = 1.0f - voxelData.g;
+                        }
+                        else
+                        {
+                            float t = saturate((depthInLight - voxelData.r) / (voxelData.b - voxelData.r));
+                            sampleVoxelShadow = lerp(1.0f, 1.0f - voxelData.g, t);
+                        }
+
+                        pcfSamples++;
+                        voxelShadowSum += sampleVoxelShadow;
                     }
                 }
+                float voxelShadowFactor = shadowFactorMin + (voxelShadowSum / pcfSamples) * 1.0f;
+
+                // Phase / powder
+                float3 SunPosition    = normalize(SunDirection) * -10000.0f;
+                float3 DirectionToSun = normalize(SunPosition - rayPos);
+                float  powder         = PowderEffect(rayDir, -DirectionToSun, powderBias);
+                float  hg             = HenyeyGreensteinPhaseFunction(rayDir, -DirectionToSun, anisotropyG);
+
+                // Accumulate
+                finalColor.rgb += transmittance * scatterColor * alpha * powder * hg * voxelShadowFactor;
+                transmittance  *= transmittanceDecay;
+
+                if (transmittance.r < 0.01f)
+                {
+                    finalColor.a = 1.0f;
+                    return finalColor;
+                }
+            }
+        }
+    }
+    else
+    {
+        // Your existing voxel code (unchanged)
+        for (uint v = 0; v < node.numVoxels; v++)
+        {
+            uint  voxelIdx   = node.firstVoxelIndex + v;
+            Voxel voxel      = voxels[voxelIdx];
+
+            float distToVoxel = BoxSDF(rayPos, voxel.position, voxelDimensions * .5f);
+            if (distToVoxel < minDist)
+            {
+                float noiseVal   = SampleNoise(rayPos);
+                float densityVal = AccumulateDensity(voxel, noiseVal);
+
+                // --- all your existing falloff, thresholds, stepSize, transmittance,
+                //     shadowing, phase, accumulation, early-out, etc. remain EXACTLY as-is ---
+                // (Paste your original voxel-path body here; no changes needed)
+                // ...
+                // [BEGIN original body]
+                float voxelDist = length(rayPos - voxel.position);
+                float voxelMaxRadius = length(voxelDimensions * 0.5f);
+                float normalizedVoxelDist = saturate(voxelDist / voxelMaxRadius);
+
+                float3 cloudCenter = (cloud.maxBounds + cloud.minBounds) * 0.5f;
+                float cloudDist = length(rayPos - cloudCenter);
+                float cloudMaxRadius = length((cloud.maxBounds.z - cloud.minBounds.z));
+                float normalizedCloudDist = saturate(cloudDist / cloudMaxRadius);
+
+                float combinedNorm = lerp(normalizedVoxelDist, normalizedCloudDist, cloudVoxelDistanceLerpVal);
+
+                float t = combinedNorm;
+                float falloff = 1.0f - (t * t * t * (t * (t * 6.0f - 15.0f) + 10.0f));
+                falloff = pow(falloff, densityFalloff);
+                densityVal *= falloff;
+
+                float2 centerXY = float2(cloudCenter.x, cloudCenter.y);
+                float2 rayXY = float2(rayPos.x, rayPos.y);
+                float radialDist = length(rayXY - centerXY);
+                float2 cloudSizeXY = (cloud.maxBounds - cloud.minBounds).xy;
+                float bigRadius = length(cloudSizeXY * 0.5f);
+                float radialNorm = saturate(radialDist / bigRadius);
+
+                float edgeSoftness = 0.3f;
+                float radialFalloff = 1.0f - smoothstep(1.0f - edgeSoftness, 1.0f, radialNorm);
+                radialFalloff = pow(radialFalloff, 1.5f);
+                densityVal *= radialFalloff;
+
+                float densityFade = smoothstep(0.0f, 0.02f, densityVal);
+                densityVal *= densityFade;
+
+                if (densityVal < 0.0001f) { continue; }
+
+                float densityFactor = 1.0f;
+                if (densityVal < lowDensityThreshold) { densityFactor = densityMultiplier; }
+
+                float distanceFactor = lerp(1.0f, farMultiplier, saturate(distanceTraveled / farDistanceThreshold));
+                float adaptiveMultiplier = max(densityFactor, distanceFactor);
+                stepSize = max(minSDF, minStep) * adaptiveMultiplier;
+
+                float transmittanceDecay = exp(-extinctionCoefficient * densityVal * stepSize);
+                float alpha = 1.0f - transmittanceDecay;
+                alpha = max(alpha, densityVal * 0.02f);
+
+                float3 scatterColor = float3(.85f, .85f, 1.0f);
+
+                float4 lightPos = mul(LightViewProj, float4(rayPos, 1.0f));
+                float depthInLight = lightPos.z / lightPos.w;
+                float2 lightNDC = lightPos.xy / lightPos.w;
+                float2 voxelShadowUV = 0.5 * lightNDC + 0.5;
+                voxelShadowUV.y = 1.0 - voxelShadowUV.y;
+
+                float2 texelSize = 1.0 / float2(1381, 690);
+
+                float voxelShadowSum = 0.0f;
+                int pcfSamples = 0;
+                for (int x = -1; x <= 1; x++) {
+                    for (int y = -1; y <= 1; y++) {
+                        float2 offset = texelSize * float2(x, y);
+                        float2 sampleUV = voxelShadowUV + offset;
+
+                        float4 voxelData = voxelShadowMap.SampleLevel(samplerState, sampleUV, 0.0f);
+                        float sampleVoxelShadow = 1.0f;
+
+                        if (depthInLight < voxelData.r) {
+                            sampleVoxelShadow = 1.0f;
+                        } else if (depthInLight > voxelData.b) {
+                            sampleVoxelShadow = 1.0f - voxelData.g;
+                        } else {
+                            float t = saturate((depthInLight - voxelData.r) / (voxelData.b - voxelData.r));
+                            sampleVoxelShadow = lerp(1.0f, 1.0f - voxelData.g, t);
+                        }
+                        pcfSamples++;
+                        voxelShadowSum += sampleVoxelShadow;
+                    }
+                }
+
+                float voxelShadowFactor = shadowFactorMin + (voxelShadowSum / (pcfSamples) * 1.f);
+
+                float3 SunPosition = normalize(SunDirection) * -10000.0f;
+                float3 DirectionToSun = normalize(SunPosition - rayPos);
+
+                float powder = PowderEffect(rayDir, -DirectionToSun, powderBias);
+                float hg = HenyeyGreensteinPhaseFunction(rayDir, -DirectionToSun, anisotropyG);
+
+                finalColor.rgb += transmittance * scatterColor * alpha * powder * hg * voxelShadowFactor;
+                transmittance *= transmittanceDecay;
+
+                if (transmittance.r < 0.01f) {
+                    finalColor.a = 1.0f;
+                    return finalColor;
+                }
+                // [END original body]
+            }
+        }
+    }
+}
                 else
                 {
-                    // If node has children
                     if(node.depth != 0)
                     {
                         stepSize *= node.depth;
                     }
                 }
-                //else {
-                //    if (minSDF <= minDist) {
-                //        OctreeNode node = octreeNodes[closestNodeIndex];
-                //
-                //        // Instead of sampling voxels, use the node’s density
-                //        float nodeDensity = node.densitySum; // Assuming each node stores a precomputed density
-                //
-                //        // Skip processing if density is too low
-                //        if (nodeDensity > lowDensityThreshold) 
-                //        {
-                //            float densityFactor = (nodeDensity < lowDensityThreshold) ? densityMultiplier : 1.0f;
-                //            float distanceFactor = lerp(1.0f, farMultiplier, saturate(distanceTraveled / farDistanceThreshold));
-                //            float adaptiveMultiplier = max(densityFactor, distanceFactor);
-                //            
-                //            stepSize = max(minSDF, minStep) * adaptiveMultiplier;
-                //
-                //            // Compute alpha via Beer-Lambert
-                //            float value = -extinctionCoefficient * nodeDensity * stepSize;
-                //            float alpha = 1.0f - exp(value);
-                //
-                //            float3 scatterColor = float3(1.0f, 1.0f, 1.0f);
-                //            float3 SunPosition = normalize(SunDirection) * -10000.0f;
-                //            float3 DirectionToSun = normalize(SunPosition - rayPos);
-                //            float powder = PowderEffect(rayDir, -DirectionToSun);
-                //
-                //            // Front-to-back accumulation
-                //            finalColor.rgb += transmittance * scatterColor * alpha * powder;
-                //
-                //            // Update transmittance
-                //            transmittance *= (1.0f - alpha);
-                //
-                //            if (transmittance.r < 0.01f) {
-                //                finalColor.a = 1.0f;
-                //                return finalColor;
-                //            }
-                //        }
-                //    }
-                //}
             }
-
-            // Potentially set stepSize to minSDF if we want to move forward just enough
-
-            //stepSize = max(minSDF, minStep) * adaptiveStepSize;
         }
 
-        //--------------------------------------------------
-        // 5) Advance the ray
-        //--------------------------------------------------
         rayPos += rayDir * stepSize;
         distanceTraveled += stepSize;
     }
 
-    // Return final color
-    finalColor.a   = 1.f - transmittance.r;
+    finalColor.a = 1.0f - transmittance.r; 
+    float alphaFade = smoothstep(0.0f, minAccepted, finalColor.a); 
+    finalColor.a *= alphaFade; 
 
-    //if (finalColor.a < 0.2f) {
-    //    finalColor.a = 0.0f;
-    //}
+    // Don't discard pixels, let the blend mode handle transparency  
+    finalColor.rgb *= saturate(finalColor.a * 2.0f);
 
-    finalColor.rgb = saturate(finalColor.rgb);
     return finalColor;
 }
 

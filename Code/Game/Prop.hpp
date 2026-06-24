@@ -5,6 +5,7 @@ enum ObjectType
 {
 	Cube,
 	UniformColorCube,
+	TexturedCube,
 	Sphere,
 	Cylinder,
 	Cone,
@@ -41,11 +42,11 @@ public:
 	float yScale = 1.f;
 	float zScale = 1.f;
 
+	Texture*	m_texture = nullptr;
+	std::vector<Vertex_PCU> m_vertexes;
 private:
 	void InitializeLocalVerts();
 
 private:
-	std::vector<Vertex_PCU> m_vertexes;
-	Texture*				m_texture = nullptr;
 	ObjectType				m_type;
 };

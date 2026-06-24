@@ -83,8 +83,13 @@ float3 CalculateGodRays(float2 uv)
     float3 rayOrigin = CameraPosition;
     float3 rayDir = ComputeRayDirection(uv * 2.f);
     
+    // Calculate phase function for forward scattering
+    float3 lightDir = normalize(lightPosition - rayOrigin);
+    float cosTheta = dot(rayDir, lightDir);
+    float phase = 0.5 + 0.5 * cosTheta;
+    phase = pow(phase, 4.0); // Strengthen forward scattering
+    
     int numSteps = 100;
-
     float stepSize = 500.f / numSteps;
     float3 stepVec = rayDir * stepSize;
 
@@ -106,16 +111,21 @@ float3 CalculateGodRays(float2 uv)
         
         if(!inShadow)
         {
-            float density = 0.01;
+            float density = 0.02; // Increased from 0.01
             float distToCamera = length(samplePos - CameraPosition);
             float attenuation = exp(-distToCamera * decay);
-            float3 scatter = float3(1.0, 1.0, 0.0) * density * attenuation * intensity;
+            
+            // Add exponential buildup for more dramatic effect
+            float accumulatedScatter = godRayAccum.r + godRayAccum.g + godRayAccum.b;
+            float scatterBoost = 1.0 + (accumulatedScatter * 0.5);
+            
+            float3 scatter = float3(1.0, 0.9, 0.6) * density * attenuation * intensity * phase * scatterBoost;
 
             godRayAccum += scatter;
         }
         samplePos += stepVec;
     }
-    return godRayAccum;
+    return godRayAccum * 2.0; // Final visibility boost
 }
 
 float4 PixelMain(VS_OUTPUT input) : SV_TARGET

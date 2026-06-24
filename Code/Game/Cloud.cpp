@@ -170,6 +170,33 @@ void Cloud::GenerateTestCloud()
 	//2BuildVerts();
 }
 
+void Cloud::GenerateShapesFromVoxels()
+{
+	m_shapes.clear();
+
+	Vec3 minPos = Vec3(FLT_MAX, FLT_MAX, FLT_MAX);
+	Vec3 maxPos = Vec3(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+
+	// Find bounds of all active voxels
+	for (const Voxel& v : m_voxels) {
+		if (v.m_density > 0.1f) {
+			minPos.x = min(minPos.x, v.m_position.x);
+			minPos.y = min(minPos.y, v.m_position.y);
+			minPos.z = min(minPos.z, v.m_position.z);
+
+			maxPos.x = max(maxPos.x, v.m_position.x);
+			maxPos.y = max(maxPos.y, v.m_position.y);
+			maxPos.z = max(maxPos.z, v.m_position.z);
+		}
+	}
+
+	CloudShape shape;
+	shape.center = (minPos + maxPos) * 0.5f;
+	shape.radii = (maxPos - minPos) * 0.5f + Vec3(5.f, 5.f, 5.f); // Add padding
+	shape.densityScale = 1.0f;
+	m_shapes.push_back(shape);
+}
+
 void Cloud::GenerateDensityField(int width, int height, int depth, float noiseScale, float noiseThreshold)
 {
 	UNUSED(noiseScale);

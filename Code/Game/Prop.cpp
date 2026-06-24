@@ -116,6 +116,16 @@ void Prop::Render() const
 
 		g_theRenderer->DrawVertexArray((int)m_vertexes.size(), m_vertexes.data());
 	}
+
+	else if (m_type == ObjectType::TexturedCube)
+	{
+		g_theRenderer->SetBlendMode(BlendMode::OPAQUE);
+		g_theRenderer->BindTexture(m_texture);
+
+		g_theRenderer->SetModelConstants(m_modelMatrix, m_color);
+
+		g_theRenderer->DrawVertexArray((int)m_vertexes.size(), m_vertexes.data());
+	}
 }
 
 void Prop::InitializeLocalVerts()

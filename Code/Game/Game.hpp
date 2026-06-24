@@ -2,6 +2,7 @@
 #include "Game/GameCommon.hpp"
 #include "Game/Weather.hpp"
 #include "Game/CloudManager.hpp"
+#include "Game/SkyVolume.hpp"
 //#include "Game/PlayerShip.hpp"
 
 //#include "Game/Player.hpp"
@@ -71,6 +72,7 @@ class Game
 	Weather m_weather;
 	//CloudManager* m_cloudManager = nullptr;
 	CloudManager* m_singleCloudManager = nullptr;
+	SkyVolume* m_skyVolume = nullptr;
 	//std::vector<Cloud*> m_clouds;
 	
 	ShadowConstants sc;
@@ -96,6 +98,6 @@ private:
 	EulerAngles m_sunOrientation = EulerAngles(180, 30, 0);
 
 	Shader* m_shadowShader = nullptr;
-
+	Shader* m_skyShader = nullptr;
 
 };

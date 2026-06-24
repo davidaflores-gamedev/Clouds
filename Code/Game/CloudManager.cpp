@@ -13,6 +13,8 @@
 #include "ThirdParty/ImGui/imgui_impl_dx11.h"
 #include "ThirdParty/ImGui/imgui_impl_win32.h"
 
+#include <chrono>
+
 CloudManager::CloudManager(Game* game, int maxClouds)
 	: m_maxClouds(maxClouds) 
 	, m_game(game)
@@ -39,6 +41,9 @@ CloudManager::CloudManager(Game* game, int maxClouds)
 
 	m_cloudOctreeBuffer = g_theRenderer->CreateStructuredBuffer(1, sizeof(OctreeNodeGPU), true);
 	m_voxelOctreeBuffer = g_theRenderer->CreateStructuredBuffer(1, sizeof(OctreeNodeGPU), true);
+
+	m_sliceExtractShader = g_theRenderer->CreateOrGetComputeShader("Data/Shaders/Extract3DSlice", VertexType::VOXEL_CLOUDS);
+	m_debugSliceTexture = g_theRenderer->CreateEmptyTextureWithUAV("DebugSlice", IntVec2(256, 256));
 }	
 
 CloudManager::~CloudManager()
@@ -91,6 +96,7 @@ void CloudManager::BeginFrame()
 	//ImGui::SetNextWindowPos(ImVec2(5, 5));
 
 	static bool showProfiler = true;
+	static bool showDebugTextures = false;
 
 	if (showProfiler)
 	{
@@ -131,6 +137,7 @@ void CloudManager::BeginFrame()
 			static float	rayDecay = .005f;
 
 			static float	shadowCastMin = .95f;
+			static float    minAccepted = 0.1f;
 
 			//ImGui::SliderFloat("Scattering Coefficient", &scatteringCoefficient, .1f, 5.f, "%.2f");
 			//m_cloudConstants.scatteringCoefficient = scatteringCoefficient;
@@ -186,6 +193,9 @@ void CloudManager::BeginFrame()
 			ImGui::SliderFloat("Falloff", &falloff, 0.f, 5.f, "%.2f");
 			m_cloudConstants.falloff = falloff;
 
+			ImGui::SliderFloat("Min Accepted", &minAccepted, 0.f, 1.f, "%.2f");
+			m_cloudConstants.minAccepted = minAccepted;
+
 			ImGui::SliderFloat("Ray Intensity", &rayIntensity, 0.f, 5.f, "%.2f");
 			m_game->grc.intensity = rayIntensity;
 
@@ -195,7 +205,145 @@ void CloudManager::BeginFrame()
 			ImGui::SliderFloat("Minimum Shadow Cast", &shadowCastMin, 0.f, 1.f, "%.2f");
 			m_game->sc.minShadow = shadowCastMin;
 
+			ImGui::Separator();
+
+			// Performance comparison
+			ImGui::Text("=== PERFORMANCE COMPARISON ===");
+			ImGui::Text("Current Mode: %s", m_cloudConstants.useShapes ? "SHAPES" : "VOXELS");
+			ImGui::Separator();
+
+			ImGui::Text("Voxel Mode: %.2f ms", m_voxelModeTime);
+			ImGui::Text("Shape Mode: %.2f ms", m_shapeModeTime);
+
+			if (m_voxelModeTime > 0 && m_shapeModeTime > 0) {
+				float speedup = m_voxelModeTime / m_shapeModeTime;
+				ImVec4 color = speedup > 1.5f ? ImVec4(0, 1, 0, 1) : ImVec4(1, 1, 0, 1);
+				ImGui::TextColored(color, "Speedup: %.2fx", speedup);
+
+				float reduction = 100.0f * (1.0f - (m_shapeModeTime / m_voxelModeTime));
+				ImGui::Text("Time Reduction: %.1f%%", reduction);
+			}
+
+			ImGui::Separator();
+
+			// Cloud statistics
+			int totalVoxels = 0;
+			int totalShapes = 0;
+			for (const Cloud& cloud : m_clouds) {
+				totalVoxels += (int)cloud.m_voxels.size();
+				totalShapes += (int)cloud.m_shapes.size();
+			}
+
+			ImGui::Text("Total Voxels: %d", totalVoxels);
+			ImGui::Text("Total Shapes: %d", totalShapes);
+			if (totalVoxels > 0) {
+				float compression = (float)totalVoxels / (float)max(totalShapes, 1);
+				ImGui::Text("Compression Ratio: %.1f:1", compression);
+			}
+
+			ImGui::Separator();
+			ImGui::Checkbox("Show Texture Debug Window", &showDebugTextures);
+
 			ImGui::PopStyleColor();
+		}
+		ImGui::End();
+	}
+
+	if (showDebugTextures)
+	{
+		ImGui::SetNextWindowSize(ImVec2(400, 600), ImGuiCond_FirstUseEver);
+		if (ImGui::Begin("Texture Debug Viewer", &showDebugTextures))
+		{
+			ImGui::Text("Debug Texture Viewer");
+			ImGui::Separator();
+
+			const char* debugViews[] = {
+				"None",
+				"Perlin Noise",
+				"Worley Noise",
+				"Cloud Output",
+				"Shadow Map"
+			};
+
+			static int currentView = 0;
+			ImGui::Combo("View Mode", &currentView, debugViews, IM_ARRAYSIZE(debugViews));
+
+			ImGui::Separator();
+
+			if (currentView > 0)
+			{
+				void* textureToShow = nullptr;
+				const char* textureName = "";
+
+				switch (currentView)
+				{
+				case 1: // Perlin Noise
+					if (m_noiseTexture && m_noiseTexture->GetShaderResourceView())
+					{
+						textureToShow = m_noiseTexture->GetShaderResourceView();
+						textureName = "Perlin Noise (3D Slice)";
+					}
+					break;
+
+				case 2: // Worley Noise  
+					if (m_worleyTexture && m_worleyTexture->GetShaderResourceView())
+					{
+						textureToShow = m_worleyTexture->GetShaderResourceView();
+						textureName = "Worley Noise (3D Slice)";
+					}
+					break;
+
+				case 3: // Cloud Output
+					if (m_outCloudTexture && m_outCloudTexture->GetShaderResourceView())
+					{
+						textureToShow = m_outCloudTexture->GetShaderResourceView();
+						textureName = "Cloud Render Output";
+					}
+					break;
+
+				case 4: // Shadow Map
+					if (m_outShadowTexture && m_outShadowTexture->GetShaderResourceView())
+					{
+						textureToShow = m_outShadowTexture->GetShaderResourceView();
+						textureName = "Shadow Map Output";
+					}
+					break;
+				}
+
+				if (textureToShow)
+				{
+					ImGui::Text("%s", textureName);
+
+					// For 3D textures, add slice control
+					if (currentView == 1 || currentView == 2)
+					{
+						static int sliceIndex = 0;
+						ImGui::SliderInt("Z Slice", &sliceIndex, 0, 255);
+						ImGui::Text("Note: 3D texture visualization requires slice extraction");
+					}
+
+					// Display the texture
+					float displaySize = 350.0f;
+					ImGui::Image((ImTextureID)textureToShow, ImVec2(displaySize, displaySize));
+
+					// Texture info
+					ImGui::Separator();
+					ImGui::Text("Texture Info:");
+					if (currentView == 3 || currentView == 4)
+					{
+						IntVec2 dims = g_theWindow->GetClientDimensions();
+						ImGui::Text("Resolution: %d x %d", dims.x, dims.y);
+					}
+					else
+					{
+						ImGui::Text("Resolution: 256 x 256 x 256");
+					}
+				}
+				else
+				{
+					ImGui::Text("Texture not available");
+				}
+			}
 		}
 		ImGui::End();
 	}
@@ -341,6 +489,16 @@ void CloudManager::UpdateClouds(float deltaSeconds, const Weather& weather)
 	
 	HandleInput(deltaSeconds);
 
+	// Auto benchmark mode - toggle every 60 frames
+	//m_frameCounter++;
+	//if (m_frameCounter == 60) {
+	//	m_cloudConstants.useShapes = 1 - m_cloudConstants.useShapes;
+	//	DebuggerPrintf("Auto-switched to %s mode\n", m_cloudConstants.useShapes ? "SHAPES" : "VOXELS");
+	//}
+	//if (m_frameCounter >= 120) {
+	//	m_frameCounter = 0;
+	//}
+
 	if (m_needsRebuild)
 	{
 		m_cloudsGPU.clear();
@@ -353,7 +511,7 @@ void CloudManager::UpdateClouds(float deltaSeconds, const Weather& weather)
 		for (int i = 0; i < m_clouds.size(); i++)
 		{
 			m_clouds[i].Update(deltaSeconds, weather);
-
+			
 
 			if (m_clouds[i].NeedsRebuild()) {
 				m_clouds[i].m_octreeIndex = octreeIndex;
@@ -365,6 +523,7 @@ void CloudManager::UpdateClouds(float deltaSeconds, const Weather& weather)
 
 				octreeIndex += (int)m_voxelOctrees[i]->GetAllChildrenSize();
 				//octreeIndex += (int)m_voxelPositionOctrees[i]->GetAllChildrenSize();
+				m_clouds[i].GenerateShapesFromVoxels();
 			}
 		}
 
@@ -428,6 +587,9 @@ void CloudManager::UpdateClouds(float deltaSeconds, const Weather& weather)
 		delete m_inVoxelBuffer;
 		m_inVoxelBuffer = nullptr;
 
+		delete m_shapeBuffer;
+		m_shapeBuffer = nullptr;
+
 		delete m_inVoxelPositionBuffer;
 		m_inVoxelPositionBuffer = nullptr;
 
@@ -441,6 +603,7 @@ void CloudManager::UpdateClouds(float deltaSeconds, const Weather& weather)
 		std::vector<OctreeNodeGPU> gpuCloudNodes;
 		std::vector<Voxel> gpuVoxels;
 		std::vector<Vec3> gpuVoxelPositions;
+		std::vector<CloudShape> allShapes;
 
 		SerializeOctreesToGPU(gpuVoxelNodes, gpuVoxels);
 		SerializePositionOctreesToGPU(gpuCloudNodes, gpuVoxelPositions);
@@ -453,8 +616,8 @@ void CloudManager::UpdateClouds(float deltaSeconds, const Weather& weather)
 		{
 			CloudGPU cloudGPU = cloud.GetCloudGPU(voxelOffset, densityOffset);
 
-
 			m_allVoxels.insert(m_allVoxels.end(), cloud.m_voxels.begin(), cloud.m_voxels.end());
+			allShapes.insert(allShapes.end(), cloud.m_shapes.begin(), cloud.m_shapes.end());
 
 			//m_allVoxelPositions.insert(m_allVoxelPositions.end(), cloud.m_voxelPositions.begin(), cloud.m_voxelPositions.end());
 
@@ -473,11 +636,19 @@ void CloudManager::UpdateClouds(float deltaSeconds, const Weather& weather)
 		{
 			mindensity = min(mindensity, gpuVoxels[i].m_density);
 			maxdensity = max(maxdensity, gpuVoxels[i].m_density);
-		}		m_voxelOctreeBuffer = g_theRenderer->CreateStructuredBuffer(gpuVoxelNodes.size(), sizeof(OctreeNodeGPU), true);
+		}		
+		m_voxelOctreeBuffer = g_theRenderer->CreateStructuredBuffer(gpuVoxelNodes.size(), sizeof(OctreeNodeGPU), true);
 		g_theRenderer->CopyCPUToGPU(gpuVoxelNodes.data(), gpuVoxelNodes.size(), m_voxelOctreeBuffer);
 
 		m_inCloudBuffer = g_theRenderer->CreateStructuredBuffer(m_cloudsGPU.size(), sizeof(CloudGPU), true);
 		g_theRenderer->CopyCPUToGPU(m_cloudsGPU.data(), m_cloudsGPU.size(), m_inCloudBuffer);
+
+		if (!allShapes.empty())
+		{
+			m_shapeBuffer = g_theRenderer->CreateStructuredBuffer(allShapes.size(), sizeof(CloudShape), true);
+			g_theRenderer->CopyCPUToGPU(allShapes.data(), allShapes.size(), m_shapeBuffer);
+		}
+
 
 		//m_inVoxelBuffer = g_theRenderer->CreateStructuredBuffer(m_allVoxels.size(), sizeof(Voxel), true);
 		//g_theRenderer->CopyCPUToGPU(m_allVoxels.data(), m_allVoxels.size(), m_inVoxelBuffer);
@@ -491,6 +662,9 @@ void CloudManager::UpdateClouds(float deltaSeconds, const Weather& weather)
 		m_cloudConstants.numClouds = (int)m_cloudsGPU.size();
 		m_cloudConstants.numOctrees = (int)gpuVoxelNodes.size();
 		m_cloudConstants.VoxelDimensions = m_voxelDimensions;
+		m_cloudConstants.useShapes = 0;  // Start with voxels
+		m_cloudConstants.numShapes = (int)allShapes.size();
+
 		m_needsRebuild = false;
 	}
 
@@ -522,6 +696,31 @@ void CloudManager::HandleInput(float deltaSeconds)
 	if (g_theInputSystem->WasKeyJustPressed('3'))
 	{
 		m_cloudConstants.invertNoise = abs(1 - m_cloudConstants.invertNoise);
+	}
+
+	if (g_theInputSystem->WasKeyJustPressed('6'))
+	{
+		// Run benchmark - switch between modes every 60 frames
+		static bool benchmarkRunning = false;
+		benchmarkRunning = !benchmarkRunning;
+
+		if (benchmarkRunning) {
+			DebuggerPrintf("Starting benchmark - will toggle every 60 frames\n");
+			m_frameCounter = 0;
+		}
+		else {
+			DebuggerPrintf("Stopping benchmark\n");
+			DebuggerPrintf("Final Results:\n");
+			DebuggerPrintf("  Voxel Mode: %.2f ms\n", m_voxelModeTime);
+			DebuggerPrintf("  Shape Mode: %.2f ms\n", m_shapeModeTime);
+			DebuggerPrintf("  Speedup: %.2fx\n", m_voxelModeTime / m_shapeModeTime);
+		}
+	}
+
+	if (g_theInputSystem->WasKeyJustPressed('7'))
+	{
+		m_cloudConstants.useShapes = abs(1 - m_cloudConstants.useShapes);
+		DebuggerPrintf("Switched to %s mode\n", m_cloudConstants.useShapes ? "SHAPES" : "VOXELS");
 	}
 
 	if (g_theInputSystem->WasKeyJustPressed('9'))
@@ -587,6 +786,8 @@ void CloudManager::HandleInput(float deltaSeconds)
 
 void CloudManager::RunCloudCompute() const
 {
+	auto startTime = std::chrono::high_resolution_clock::now();
+
 	if (demonstration == 0)
 	{
 		g_theRenderer->BindComputeShader(m_cloudComputeShader);
@@ -604,6 +805,7 @@ void CloudManager::RunCloudCompute() const
 	g_theRenderer->BindTexture3D(PipelineStage::COMPUTE, m_worleyTexture, 3);
 	g_theRenderer->BindStructuredBufferToWrite(4, m_voxelOctreeBuffer);
 	g_theRenderer->BindTexture(PipelineStage::COMPUTE, m_outShadowTexture, 5);
+	g_theRenderer->BindStructuredBufferToWrite(6, m_shapeBuffer);
 	//g_theRenderer->BindStructuredBufferToWrite(4, m_cloudOctreeBuffer);
 
 	g_theRenderer->BindTextureWithUAV(PipelineStage::COMPUTE, m_outCloudTexture);
@@ -638,6 +840,20 @@ void CloudManager::RunCloudCompute() const
 	g_theRenderer->BindTexture();
 
 	g_theRenderer->SetSamplerMode(SamplerMode::BILINEAR_WRAP);
+
+	// End timing
+	auto endTime = std::chrono::high_resolution_clock::now();
+	auto duration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
+	float milliseconds = duration.count() / 1000.0f;
+
+	// Track performance based on current mode
+	CloudManager* nonConstThis = const_cast<CloudManager*>(this);
+	if (m_cloudConstants.useShapes == 1) {
+		nonConstThis->m_shapeModeTime = milliseconds;
+	}
+	else {
+		nonConstThis->m_voxelModeTime = milliseconds;
+	}
 }
 
 void CloudManager::RunShadowCompute() const
@@ -693,7 +909,9 @@ void CloudManager::RenderClouds() const
 {
 	RunCloudCompute();
 
-	g_theRenderer->SetBlendMode(BlendMode::ALPHA);
+	g_theRenderer->SetBlendMode(BlendMode::ALPHAPREMUL);
+
+	//g_theRenderer->SetDepthMode(DepthMode::DISABLED);
 
 	g_theRenderer->BindShader(m_cloudDebugShader);
 

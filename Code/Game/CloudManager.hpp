@@ -71,6 +71,8 @@ private:
 	StructuredBuffer* m_cloudOctreeBuffer = nullptr;
 	StructuredBuffer* m_voxelOctreeBuffer = nullptr;
 
+	StructuredBuffer* m_shapeBuffer = nullptr;
+
 	Texture* m_outCloudTexture = nullptr;
 	
 	Texture3D* m_noiseTexture = nullptr;
@@ -100,4 +102,15 @@ private:
 	bool m_needsRebuild = true;
 
 	Vec3 m_voxelDimensions = Vec3(20.f);
+
+	float m_densityFalloff = 1.5f;
+
+	float m_voxelModeTime = 0.0f;
+	float m_shapeModeTime = 0.0f;
+	int m_frameCounter = 0;
+	float m_accumulatedTime = 0.0f;
+
+	// debug textures
+	Texture* m_debugSliceTexture = nullptr;
+	ComputeShader* m_sliceExtractShader = nullptr;
 };

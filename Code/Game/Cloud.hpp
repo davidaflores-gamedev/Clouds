@@ -27,6 +27,14 @@ struct CloudGPU
 	//unsigned int densityCount;  // Number of density values
 };
 
+struct CloudShape
+{
+	Vec3 center;
+	float pad1;
+	Vec3 radii; // for ellipsoids
+	float densityScale;
+};
+
 class Cloud
 {
 public:
@@ -40,6 +48,7 @@ public:
 	//void Initialize(const Vec3& position, const Vec3& size);
 	void GenerateCloud();
 	void GenerateTestCloud();
+	void GenerateShapesFromVoxels();
 	void GenerateDensityField(int width, int height, int depth, float noiseScale, float noiseThreshold);
 
 	void Update(float deltaSeconds, const Weather& weather);
@@ -75,6 +84,7 @@ public:
 
 	std::vector<Voxel> m_voxels = {};
 
+	std::vector<CloudShape> m_shapes;
 
 	//std::vector<float> m_densityValues = {};
 

@@ -45,8 +45,8 @@ Game::~Game()
 	//delete m_cloudManager;
 	//m_cloudManager = nullptr;
 
-	delete m_singleCloudManager;
-	m_singleCloudManager = nullptr;
+	//delete m_singleCloudManager;
+	//m_singleCloudManager = nullptr;
 	//m_cloudManager;
 }
 
@@ -76,61 +76,73 @@ void Game::Startup()
 	static_cast<Prop*>(m_entities[3])->yScale = 1.f;
 	static_cast<Prop*>(m_entities[3])->zScale = 3.f;
 
-	for (int i = 0; i < 101; i++)
-	{
-		m_entities[i + 4] = new Prop(this, Vec3(0.f, (i) - 50.f, 0.f), ObjectType::UniformColorCube);
-		m_entities[i + 4]->m_color = Rgba8(100, 100, 100);
-		static_cast<Prop*>(m_entities[i + 4])->yScale = .01f;
-		static_cast<Prop*>(m_entities[i + 4])->zScale = .01f;
+	//for (int i = 0; i < 101; i++)
+	//{
+	//	m_entities[i + 4] = new Prop(this, Vec3(0.f, (i) - 50.f, 0.f), ObjectType::UniformColorCube);
+	//	m_entities[i + 4]->m_color = Rgba8(100, 100, 100);
+	//	static_cast<Prop*>(m_entities[i + 4])->yScale = .01f;
+	//	static_cast<Prop*>(m_entities[i + 4])->zScale = .01f;
+	//
+	//	if (i % 5 == 0)
+	//	{
+	//		m_entities[i + 4]->m_color = Rgba8(150, 10, 10);
+	//		static_cast<Prop*>(m_entities[i + 4])->yScale = .03f;
+	//		static_cast<Prop*>(m_entities[i + 4])->zScale = .03f;
+	//	}
+	//
+	//	if (i == 50)
+	//	{
+	//		m_entities[i + 4]->m_color = Rgba8::RED;
+	//		static_cast<Prop*>(m_entities[i + 4])->yScale = .06f;
+	//		static_cast<Prop*>(m_entities[i + 4])->zScale = .06f;
+	//	}
+	//
+	//	static_cast<Prop*>(m_entities[i + 4])->xScale = 100.f;
+	//	
+	//}
+	//
+	//for (int i = 0; i < 101; i++)
+	//{
+	//	m_entities[i + 105] = new Prop(this, Vec3((i)-50.f, 0.f, 0.f), ObjectType::UniformColorCube);
+	//	m_entities[i + 105]->m_color = Rgba8(100, 100, 100);
+	//
+	//	static_cast<Prop*>(m_entities[i + 105])->xScale = .01f;
+	//	static_cast<Prop*>(m_entities[i + 105])->zScale = .01f;
+	//
+	//	if (i % 5 == 0)
+	//	{
+	//		m_entities[i + 105]->m_color = Rgba8(10, 150, 10);
+	//		static_cast<Prop*>(m_entities[i + 105])->xScale = .03f;
+	//		static_cast<Prop*>(m_entities[i + 105])->zScale = .03f;
+	//	}
+	//
+	//	if (i == 50)
+	//	{
+	//		m_entities[i + 105]->m_color = Rgba8::GREEN;
+	//		static_cast<Prop*>(m_entities[i + 105])->xScale = .06f;
+	//		static_cast<Prop*>(m_entities[i + 105])->zScale = .06f;
+	//	}
+	//
+	//
+	//	static_cast<Prop*>(m_entities[i + 105])->yScale = 100.f;
+	//}
 
-		if (i % 5 == 0)
-		{
-			m_entities[i + 4]->m_color = Rgba8(150, 10, 10);
-			static_cast<Prop*>(m_entities[i + 4])->yScale = .03f;
-			static_cast<Prop*>(m_entities[i + 4])->zScale = .03f;
-		}
+	m_entities[4] = new Prop(this, Vec3(0, 0, -3.0), ObjectType::TexturedCube);
+	m_entities[4]->m_color = Rgba8(77, 153, 51, 255);
+	static_cast<Prop*>(m_entities[4])->xScale = 500.f;
+	static_cast<Prop*>(m_entities[4])->yScale = 500.f;
+	static_cast<Prop*>(m_entities[4])->m_modelMatrix.AppendXRotation(180.f);
+	static_cast<Prop*>(m_entities[4])->m_modelMatrix.AppendYRotation(180.f);
+	static_cast<Prop*>(m_entities[4])->m_modelMatrix.AppendZRotation(180.f);
 
-		if (i == 50)
-		{
-			m_entities[i + 4]->m_color = Rgba8::RED;
-			static_cast<Prop*>(m_entities[i + 4])->yScale = .06f;
-			static_cast<Prop*>(m_entities[i + 4])->zScale = .06f;
-		}
+	Prop& ref = (Prop&)(m_entities[4]);
 
-		static_cast<Prop*>(m_entities[i + 4])->xScale = 100.f;
-		
-	}
-	
-	for (int i = 0; i < 101; i++)
-	{
-		m_entities[i + 105] = new Prop(this, Vec3((i)-50.f, 0.f, 0.f), ObjectType::UniformColorCube);
-		m_entities[i + 105]->m_color = Rgba8(100, 100, 100);
+	Mat44 transform = Mat44();
 
-		static_cast<Prop*>(m_entities[i + 105])->xScale = .01f;
-		static_cast<Prop*>(m_entities[i + 105])->zScale = .01f;
+	transform.AppendYRotation(180.f);
 
-		if (i % 5 == 0)
-		{
-			m_entities[i + 105]->m_color = Rgba8(10, 150, 10);
-			static_cast<Prop*>(m_entities[i + 105])->xScale = .03f;
-			static_cast<Prop*>(m_entities[i + 105])->zScale = .03f;
-		}
-
-		if (i == 50)
-		{
-			m_entities[i + 105]->m_color = Rgba8::GREEN;
-			static_cast<Prop*>(m_entities[i + 105])->xScale = .06f;
-			static_cast<Prop*>(m_entities[i + 105])->zScale = .06f;
-		}
-
-	
-		static_cast<Prop*>(m_entities[i + 105])->yScale = 100.f;
-	}
-
-	m_entities[206] = new Prop(this, Vec3(0, 0, -3.0), ObjectType::UniformColorCube);
-	m_entities[206]->m_color = Rgba8(77, 153, 51, 255);
-	static_cast<Prop*>(m_entities[206])->xScale = 500.f;
-	static_cast<Prop*>(m_entities[206])->yScale = 500.f;
+	TransformVertexArray3D(static_cast<Prop*>(m_entities[4])->m_vertexes, transform);
+	static_cast<Prop*>(m_entities[4])->m_texture = g_theRenderer->CreateOrGetTextureFromFile("Data/Images/Ground.png");
 
 
 	m_player = (Player*)m_entities[0];
@@ -149,10 +161,14 @@ void Game::Startup()
 	m_weather.Initialize(25.0f, 60.0f, 15.0f, Vec3(1.0f, 0.0f, 0.0f));
 
 	//m_cloudManager = new CloudManager(200);
-	m_singleCloudManager = new CloudManager(this, 1);
+	//m_singleCloudManager = new CloudManager(this, 1);
 
-	m_weather = Weather();
-	m_weather.SetWeatherConditions(1.0f, 1.0f, 1.0f, Vec3(1.0f, 0.0f, 0.0f));
+	m_skyVolume = new SkyVolume();
+	m_skyVolume->Initialize();
+	m_skyVolume->m_theGame = this;
+
+	//m_weather = Weather();
+	//m_weather.SetWeatherConditions(1.0f, 1.0f, 1.0f, Vec3(1.0f, 0.0f, 0.0f));
 	
 	//int noiseWidth	= 64;
 	//int noiseHeight = 64;
@@ -165,7 +181,7 @@ void Game::Startup()
 	//	m_cloudManager->CreateCloud(g_theRandom->RollRandomVec3InRange(0.f, 50.f), g_theRandom->RollRandomVec3InRange(32, 64), 0.01f, 0.5f);
 	//}
 
-	m_singleCloudManager->CreateTest();
+	//m_singleCloudManager->CreateTest();
 	//m_singleCloudManager->CreateCloud(Vec3(0, 0, 0);
 	//cloud1.m_scale = Vec3(5.0f, 3.0f, 5.0f);
 
@@ -190,6 +206,7 @@ void Game::Startup()
 	//	cloud->BuildVerts();
 	//}
 	m_shadowShader = g_theRenderer->CreateOrGetShader("Data/Shaders/DefaultShadows", VertexType::VERTEX_PCU);
+	m_skyShader = g_theRenderer->CreateOrGetShader("Data/Shaders/SkyShader", VertexType::VERTEX_PCU);
 
 }
 
@@ -247,8 +264,16 @@ void Game::StartGame()
 void Game::Shutdown()
 {
 	//m_cloudManager->Shutdown();
-	delete m_singleCloudManager;
-	m_singleCloudManager = nullptr;
+
+	if (m_skyVolume)
+	{
+		delete m_skyVolume;
+		m_skyVolume = nullptr;
+	}
+
+	//delete m_singleCloudManager;
+	//m_singleCloudManager = nullptr;
+
 	shuttingDown = true;	
 }
 
@@ -369,6 +394,39 @@ void Game::Update()
 		{
 			m_player->HandleInput(deltaSeconds);
 
+			if (g_theInputSystem->WasKeyJustPressed(KEYCODE_F9)) {
+				m_skyVolume->ToggleDebugVisualization();
+			}
+			if (g_theInputSystem->WasKeyJustPressed(KEYCODE_F1)) {
+				m_skyVolume->m_debugSettings.showOctreeNodes = !m_skyVolume->m_debugSettings.showOctreeNodes;
+			}
+			if (g_theInputSystem->WasKeyJustPressed(KEYCODE_F2)) {
+				m_skyVolume->m_debugSettings.showDensityField = !m_skyVolume->m_debugSettings.showDensityField;
+			}
+			if (g_theInputSystem->WasKeyJustPressed(KEYCODE_LEFT_BRACKET)) {
+				m_skyVolume->m_debugSettings.octreeLevelToShow--;
+			}
+			if (g_theInputSystem->WasKeyJustPressed(KEYCODE_RIGHT_BRACKET)) {
+				m_skyVolume->m_debugSettings.octreeLevelToShow++;
+			}
+
+			if (g_theInputSystem->WasKeyJustPressed(KEYCODE_PERIOD)) {
+				int& value = m_skyVolume->m_debugSettings.currentDebugMode;
+				value++;
+				if (value > 3)
+				{
+					value = 0;
+				}
+			}
+
+			if (g_theInputSystem->WasKeyJustPressed(KEYCODE_LEFT_MOUSE)) {
+				Vec2 mousePos = g_theInputSystem->GetCursorNormalizedPosition() * g_theWindow->GetClientDimensions();
+				
+				m_skyVolume->m_debugSettings.debugPixelX = mousePos.x;
+				m_skyVolume->m_debugSettings.debugPixelY = mousePos.y;
+				m_skyVolume->m_debugSettings.currentDebugMode = 4; // Show specific pixel
+			}
+
 			for (int i = 0; i < maxEntities; i++)
 			{
 				if(m_entities[i] != nullptr)
@@ -400,8 +458,10 @@ void Game::Update()
 			m_rotationoffset +=  10 * deltaSeconds;
 
 			//m_weather.Update(deltaSeconds, *m_cloudManager);
-			m_weather.Update(deltaSeconds, *m_singleCloudManager);
+			//m_weather.Update(deltaSeconds, *m_singleCloudManager);
 			//m_cloudManager.UpdateClouds(deltaSeconds, m_weather);
+
+			m_skyVolume->Update(deltaSeconds);
 		}
 		if (m_nextFrame)
 		{
@@ -442,7 +502,8 @@ void Game::PrepareForRender()
 
 void Game::BeginFrame()
 {
-	m_singleCloudManager->BeginFrame();
+	//m_singleCloudManager->BeginFrame();
+	m_skyVolume->RenderImGuiPanel();
 }
 
 void Game::EndFrame()
@@ -523,8 +584,6 @@ void Game::RenderShadowMap()
 {
 	g_theRenderer->PreRenderShadowMap();
 
-	//Vec3 sunDirection = m_sunOrientation.GetMatrix_XFwd_YLeft_ZUp().GetIBasis3D();
-
 	float distance = 700.f;
 
 	Vec3 iBasis, jBasis, kBasis;
@@ -534,39 +593,18 @@ void Game::RenderShadowMap()
 	float orthoWidth = 500.f;
 	float orthoHeight = 500.f;
 
-	//sunPosition = sunPosition + jBasis * orthoWidth * 0.375f + kBasis * -orthoHeight * .75f;
-
 	m_lightCamera.m_position = sunPosition;    // or some base offset
 	m_lightCamera.m_orientation = m_sunOrientation;
 
-	//float percentDown = 0.25f;   // 25% down
-	//float percentLeft = 0.375f;  // 37.5% left
-
-
-	//Vec3 offsetDown = -percentDown * orthoHeight * kBasis;
-	//Vec3 offsetLeft = percentLeft * orthoWidth * jBasis;
-	//Vec3 totalOffset = offsetDown + offsetLeft;
-
-	//m_lightCamera.m_position += totalOffset;
-
-	//10, -5
-
 	m_lightCamera.SetOrthoView(AABB2(Vec2(-orthoWidth, -orthoHeight), Vec2(orthoWidth, orthoHeight)), 0.1f, 1000.f);
 
-	//Vec3 sunPosition = Vec3(0.f, 0.f, 0.f) - sunDirection * distance;
-	//
-	//m_lightCamera.m_position = Vec3(-20.0f, 37.5f, -25.f);
-	//
-	//m_lightCamera.m_orientation = m_sunOrientation;
-	//
-	////m_lightCamera.SetTransform(sunPosition, m_sunOrientation);
-	//
-	//m_lightCamera.SetOrthoView(AABB2(Vec2(100, 100)), 0.f, 200.f);
-	//
+	g_theRenderer->BeginCamera(m_lightCamera);
+
+	Mat44 lightView = m_lightCamera.GetViewMatrix();
+	Mat44 lightProj = m_lightCamera.GetProjectionMatrix();
+	Mat44 lightViewProj = m_lightCamera.GetViewProjectionMatrix();
 
 	
-
-	g_theRenderer->BeginCamera(m_lightCamera);
 
 	g_theRenderer->SetModelConstants();
 	//g_theRenderer->SetBlendMode(BlendMode::ALPHA);
@@ -583,7 +621,16 @@ void Game::RenderShadowMap()
 
 	m_entities[3]->RenderShadow();
 
-	m_singleCloudManager->RenderShadows();
+	//m_singleCloudManager->RenderShadows();
+
+	//if (m_skyVolume->m_constants)
+	// Pass these to your sky volume for the shadow pass
+	if (m_skyVolume && m_skyVolume->m_constants.useShadowMap) {
+		m_skyVolume->m_constants.shadowViewMatrix = lightView;
+		m_skyVolume->m_constants.shadowProjectionMatrix = lightProj;
+
+		m_skyVolume->RenderShadowPass();
+	}
 
 	for (int i = 0; i < maxEntities; i++)
 	{
@@ -611,7 +658,10 @@ void Game::Render()
 	//g_theRenderer->SetLightConstants(m_sunDirection.GetNormalized(), m_sunIntensity, m_ambientIntensity);
 	g_theRenderer->SetModelConstants();
 
-	
+	g_theRenderer->SetDepthMode(DepthMode::DISABLED);
+	g_theRenderer->BindShader(m_skyShader);
+	g_theRenderer->DrawFullScreenQuad();
+	g_theRenderer->SetDepthMode(DepthMode::ENABLED);
 
 	Mat44 ViewProjectionMatrix = m_lightCamera.GetViewProjectionMatrix();
 
@@ -621,7 +671,7 @@ void Game::Render()
 	g_theRenderer->SetBlendMode(BlendMode::OPAQUE);
 	g_theRenderer->BindTexture(nullptr);
 	g_theRenderer->BindTexture(g_theRenderer->GetTextureForFileName("ShadowMap"), 1);
-	g_theRenderer->BindTexture(m_singleCloudManager->m_outShadowTexture, 2);
+	g_theRenderer->BindTexture(m_skyVolume->m_shadowTexture, 2);
 	//g_theRenderer->BindTexture(nullptr);
 	g_theRenderer->BindShader(m_shadowShader);
 
@@ -631,6 +681,9 @@ void Game::Render()
 
 	if (!m_attract)
 	{
+
+
+
 		g_theRenderer->DrawVertexArray((int)m_sunVerts.size(), m_sunVerts.data());
 		g_theRenderer->SetRasterizerMode(RasterizerMode::WIREFRAME_CULL_BACK);
 		g_theRenderer->DrawVertexArray((int)m_sunWireframeVerts.size(), m_sunWireframeVerts.data());
@@ -651,7 +704,9 @@ void Game::Render()
 
 		g_theRenderer->SetRasterizerMode(RasterizerMode::SOLID_CULL_BACK);
 
-		m_singleCloudManager->DebugRenderClouds();
+		//m_singleCloudManager->DebugRenderClouds();
+
+	
 
 		g_theRenderer->BindTexture();
 		for (int i = 0; i < maxEntities; i++)
@@ -663,7 +718,9 @@ void Game::Render()
 		}
 		//m_cloudManager->RenderClouds();
 		
-		m_singleCloudManager->RenderClouds();
+		//m_singleCloudManager->RenderClouds();
+
+		m_skyVolume->Render();
 
 		DebugRenderWorld(m_player->m_playerCam);
 	}
@@ -700,7 +757,7 @@ void Game::Render()
 
 	g_theRenderer->SetGodRaysConstants(grc);
 
-	g_theRenderer->BindTexture(m_singleCloudManager->m_outShadowTexture, 1);
+	g_theRenderer->BindTexture(m_skyVolume->m_shadowTexture, 1);
 
 	g_theRenderer->RenderGodRays();
 
@@ -807,16 +864,16 @@ bool Event_SetGameTimeScale(EventArgs& args)
 bool Event_Controls(EventArgs& args)
 {
 	UNUSED(args);
-	g_theConsole->AddLine(Rgba8(200, 200, 0, 200), "Controls:");
-	g_theConsole->AddLine(Rgba8(200, 200, 0, 200), "E to move Forward");
-	g_theConsole->AddLine(Rgba8(200, 200, 0, 200), "S to rotate counter clockwise");
-	g_theConsole->AddLine(Rgba8(200, 200, 0, 200), "F to rotate clockwise");
-	g_theConsole->AddLine(Rgba8(200, 200, 0, 200), "Spacebar to shoot");
-	g_theConsole->AddLine(Rgba8(200, 200, 0, 200), "F1 to turn on DebguDraw");
-	g_theConsole->AddLine(Rgba8(200, 200, 0, 200), "T to Slow Down Time");
-	g_theConsole->AddLine(Rgba8(200, 200, 0, 200), "O to Step A Single Frame");
-	g_theConsole->AddLine(Rgba8(200, 200, 0, 200), "P to Pause");
-	g_theConsole->AddLine(Rgba8(200, 200, 0, 200), "Esc to Quit the game/Close the application");
+	//g_theConsole->AddLine(Rgba8(200, 200, 0, 200), "Controls:");
+	//g_theConsole->AddLine(Rgba8(200, 200, 0, 200), "E to move Forward");
+	//g_theConsole->AddLine(Rgba8(200, 200, 0, 200), "S to rotate counter clockwise");
+	//g_theConsole->AddLine(Rgba8(200, 200, 0, 200), "F to rotate clockwise");
+	//g_theConsole->AddLine(Rgba8(200, 200, 0, 200), "Spacebar to shoot");
+	//g_theConsole->AddLine(Rgba8(200, 200, 0, 200), "F1 to turn on DebguDraw");
+	//g_theConsole->AddLine(Rgba8(200, 200, 0, 200), "T to Slow Down Time");
+	//g_theConsole->AddLine(Rgba8(200, 200, 0, 200), "O to Step A Single Frame");
+	//g_theConsole->AddLine(Rgba8(200, 200, 0, 200), "P to Pause");
+	//g_theConsole->AddLine(Rgba8(200, 200, 0, 200), "Esc to Quit the game/Close the application");
 
 	return true;
 }

@@ -204,6 +204,7 @@
     <ClCompile Include="Perlin3D.cpp" />
     <ClCompile Include="Player.cpp" />
     <ClCompile Include="Prop.cpp" />
+    <ClCompile Include="SkyVolume.cpp" />
     <ClCompile Include="Voxel.cpp" />
     <ClCompile Include="CloudsBuffer.cpp" />
     <ClCompile Include="Weather.cpp" />
@@ -220,6 +221,7 @@
     <ClInclude Include="Perlin3D.hpp" />
     <ClInclude Include="Player.hpp" />
     <ClInclude Include="Prop.hpp" />
+    <ClInclude Include="SkyVolume.hpp" />
     <ClInclude Include="Voxel.hpp" />
     <ClInclude Include="CloudsBuffer.hpp" />
     <ClInclude Include="Weather.hpp" />
